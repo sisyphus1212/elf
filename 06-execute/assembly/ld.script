@@ -1,0 +1,12 @@
+ENTRY(_start)
+PHDRS
+{
+  loade PT_LOAD FILEHDR PHDRS FLAGS(1);
+}
+SECTIONS
+{
+  . = SEGMENT_START("text-segment", 0x08048000) + SIZEOF_HEADERS;
+  .text  : { *(.text) } : loade
+  .data  : { *(.data) } : loade
+  .rodata : { *(.rodata) } : loade
+}

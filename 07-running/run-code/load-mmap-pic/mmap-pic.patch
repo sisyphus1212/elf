@@ -1,0 +1,46 @@
+--- mmap.orig.c	2019-12-01 21:39:42.023177313 +0800
++++ mmap-pic.c	2021-02-17 22:03:20.620930917 +0800
+@@ -1,9 +1,12 @@
++/* Author: Wu Zhangjin, Wechat: tinylab */
++
+ #include <sys/mman.h>
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <unistd.h>
++#include <sys/wait.h>
+ 
+ #define handle_error(msg) \
+     do { perror(msg); exit(EXIT_FAILURE); } while (0)
+@@ -49,19 +52,22 @@
+         length = sb.st_size - offset;
+     }
+ 
+-    addr = mmap(NULL, length + offset - pa_offset, PROT_READ,
++    addr = mmap(NULL, length + offset - pa_offset, PROT_READ|PROT_EXEC,
+                 MAP_PRIVATE, fd, pa_offset);
+     if (addr == MAP_FAILED)
+         handle_error("mmap");
+ 
+-    s = write(STDOUT_FILENO, addr + offset - pa_offset, length);
+-    if (s != length) {
+-        if (s == -1)
+-            handle_error("write");
+-
+-        fprintf(stderr, "partial write");
+-        exit(EXIT_FAILURE);
++    int pid, status = 0;
++    if ((pid = fork()) == 0) {
++        /* execute it */
++        ((void (*)(void))addr)();
+     }
+ 
++    wait(&status);
++
++    munmap(addr, length + offset - pa_offset);
++
++    //printf("exit\n");
++
+     exit(EXIT_SUCCESS);
+ }

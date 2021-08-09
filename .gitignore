@@ -1,0 +1,13 @@
+*.s
+*.o
+*.so*
+*.i
+core
+*hello
+*swap
+*.strip
+ret
+*.log
+*core
+*.bin
+*-bin

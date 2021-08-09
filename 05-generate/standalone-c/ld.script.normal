@@ -1,0 +1,28 @@
+OUTPUT_FORMAT("elf32-i386", "elf32-i386", "elf32-i386")
+OUTPUT_ARCH(i386)
+ENTRY(_start)
+SEARCH_DIR("=/usr/lib32");
+PHDRS
+{
+  headers PT_PHDR PHDRS FLAGS (5);
+  interp PT_INTERP;
+  loadr PT_LOAD FILEHDR PHDRS;
+  /*loadw PT_LOAD;*/
+  dynamic PT_DYNAMIC;
+}
+SECTIONS
+{
+  PROVIDE (__executable_start = SEGMENT_START("text-segment", 0x08048000));
+  . = SEGMENT_START("text-segment", 0x08048000) + SIZEOF_HEADERS;
+  .interp         : { *(.interp) } : interp : loadr
+  .dynsym         : { *(.dynsym) } : loadr
+  .dynstr         : { *(.dynstr) } : loadr
+  .gnu.version_r  : { *(.gnu.version_r) } : loadr
+  .rel.plt        : { *(.rel.plt .rel.iplt) } : loadr
+  .plt            : { *(.plt) *(.iplt) } : loadr
+  .text           : { *(.text*  .gnu.linkonce.t.*) } : loadr
+  .rodata         : { *(.rodata .rodata.* .gnu.linkonce.r.*) } : loadr
+  .got.plt        : { *(.got.plt)  *(.igot.plt) } : loadr /* loadw */
+  .dynamic        : { *(.dynamic) } : dynamic : loadr /* loadw */
+  /DISCARD/ : { *(.note.GNU-stack) *(.gnu_debuglink) *(.gnu.lto_*) *(.comment)}
+}

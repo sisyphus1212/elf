@@ -1,0 +1,137 @@
+--- mmap.orig.c	2021-02-17 20:09:50.561012609 +0800
++++ mmap-elf.c	2021-02-17 21:49:56.468940564 +0800
+@@ -1,25 +1,35 @@
++/* Author: Wu Zhangjin, Wechat: tinylab */
++
+ #include <sys/mman.h>
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <unistd.h>
++#include <elf.h>
++#include <unistd.h>     /* fork, execlp */
++#include <sys/wait.h>
+ 
+ #define handle_error(msg) \
+     do { perror(msg); exit(EXIT_FAILURE); } while (0)
+ 
++/* magic: 0x7F E L F */
++/* x86 little endian */
++#define elf_magic 0x464c457f
++
+ int
+ main(int argc, char *argv[])
+ {
+-    char *addr;
++    char *addr = NULL, *entry = NULL;
+     int fd;
+     struct stat sb;
+     off_t offset, pa_offset;
+-    size_t length;
++    size_t headers_length, length;
+     ssize_t s;
++    int ret = EXIT_SUCCESS;
+ 
+-    if (argc < 3 || argc > 4) {
+-        fprintf(stderr, "%s file offset [length]\n", argv[0]);
++    if (argc < 1 || argc > 2) {
++        fprintf(stderr, "%s file\n", argv[0]);
+         exit(EXIT_FAILURE);
+     }
+ 
+@@ -30,38 +40,71 @@
+     if (fstat(fd, &sb) == -1)           /* To obtain file size */
+         handle_error("fstat");
+ 
+-    offset = atoi(argv[2]);
+-    pa_offset = offset & ~(sysconf(_SC_PAGE_SIZE) - 1);
++    /* read ELF header and 5 program header, 2 may be enough for our minimal elf binary */
++    headers_length = sizeof(Elf32_Ehdr) + 5 * sizeof(Elf32_Phdr);
++    if (headers_length >= sb.st_size)
++        headers_length = sb.st_size;
++
++    addr = mmap((void *)addr, headers_length, PROT_READ, MAP_PRIVATE, fd, 0);
++    if (addr == MAP_FAILED)
++        handle_error("mmap");
++
++    /* check file magic */
++    Elf32_Ehdr *ehdr = (Elf32_Ehdr *)addr;
++    int magic = *((int *)&ehdr->e_ident);
++
++    if (magic != elf_magic) {
++        printf("ERR: magic %x not support\n", magic);
++        ret = EXIT_FAILURE;
++        goto unmap_addr;
++    } else {
++        ; // printf("LOG: ELF detected\n");
++    }
++
++    /* scan loadable and executable program header */
++    int i;
++    Elf32_Phdr *p, *phdr_start = (Elf32_Phdr *)((char *)addr + ehdr->e_phoff);
++    for (i = 0; i < ehdr->e_phnum; i++) {
++       p = phdr_start + i;
++       if ((p->p_type == PT_LOAD) && (p->p_flags & PF_X == PF_X)) {
++           // printf("LOG: Loadable and executable program header found: %d\n", i);
++           break;
++       }
++    }
++
++    char *vaddr = NULL;
++    char flags = PROT_READ;
++    for (p; p < phdr_start + ehdr->e_phnum; p++) {
++        pa_offset = p->p_offset & ~(sysconf(_SC_PAGE_SIZE) - 1);
+         /* offset for mmap() must be page aligned */
++        //printf("%d\n", p->p_filesz);
+ 
+-    if (offset >= sb.st_size) {
+-        fprintf(stderr, "offset is past end of file\n");
+-        exit(EXIT_FAILURE);
++        /* load the program context to memory */
++        if ((p->p_flags & PF_X) == PF_X)
++            flags = flags | PROT_EXEC;
++        mmap((void *)p->p_vaddr, p->p_filesz + p->p_offset - pa_offset, flags, MAP_PRIVATE|MAP_FIXED|MAP_POPULATE, fd, pa_offset);
+     }
+ 
+-    if (argc == 4) {
+-        length = atoi(argv[3]);
+-        if (offset + length > sb.st_size)
+-            length = sb.st_size - offset;
+-                /* Can't display bytes past end of file */
++    /* get entry point */
++    entry = (char *)ehdr->e_entry;
+ 
+-    } else {    /* No length arg ==> display to end of file */
+-        length = sb.st_size - offset;
++    int pid, status = 0;
++    if ((pid = fork()) == 0) {
++        /* execute it */
++        ((void (*)(void))entry)();
+     }
+ 
+-    addr = mmap(NULL, length + offset - pa_offset, PROT_READ,
+-                MAP_PRIVATE, fd, pa_offset);
+-    if (addr == MAP_FAILED)
+-        handle_error("mmap");
++    wait(&status);
+ 
+-    s = write(STDOUT_FILENO, addr + offset - pa_offset, length);
+-    if (s != length) {
+-        if (s == -1)
+-            handle_error("write");
++    for (p--; p > phdr_start; p--) {
++        //printf("%d\n", p->p_filesz);
+ 
+-        fprintf(stderr, "partial write");
+-        exit(EXIT_FAILURE);
++        pa_offset = p->p_offset & ~(sysconf(_SC_PAGE_SIZE) - 1);
++        /* offset for mmap() must be page aligned */
++        munmap((void *)p->p_vaddr, p->p_filesz + p->p_offset - pa_offset);
+     }
++unmap_addr:
++    munmap(addr, headers_length);
+ 
+-    exit(EXIT_SUCCESS);
++    exit(ret);
+ }

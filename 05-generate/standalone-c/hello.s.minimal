@@ -1,0 +1,17 @@
+	.file	"hello.c"
+	.text
+	.section	.rodata
+.LC0:
+	.string	"hello"
+	.text
+	.globl	_start
+	.type	_start, @function
+_start:
+	subl    $8, %esp
+	pushl	$.LC0
+	call	puts
+	pushl	$0
+	call	_exit
+	.size	_start, .-_start
+	.ident	"GCC: (Ubuntu 8.3.0-16ubuntu3~16.04) 8.3.0"
+	.section	.note.GNU-stack,"",@progbits

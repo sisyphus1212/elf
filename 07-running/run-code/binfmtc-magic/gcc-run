@@ -1,0 +1,18 @@
+#!/usr/bin/env /bin/bash
+# Author: Wu Zhangjin, Wechat: tinylab
+
+echo "gcc-run begin"
+
+src=$*
+prefix=${src%.*}
+
+tmp_src=`mktemp --suffix .c`
+tmp_out=`mktemp --suffix .out`
+
+cat $src | grep -v '^#!' > $tmp_src
+gcc -o $tmp_out $tmp_src
+$tmp_out
+
+rm $tmp_src $tmp_out
+
+echo "gcc-run end"

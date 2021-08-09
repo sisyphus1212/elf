@@ -1,0 +1,27 @@
+OUTPUT_FORMAT("elf32-i386", "elf32-i386", "elf32-i386")
+OUTPUT_ARCH(i386)
+ENTRY(_start)
+SEARCH_DIR("=/usr/lib32");
+SECTIONS
+{
+  PROVIDE (__executable_start = SEGMENT_START("text-segment", 0x08048000));
+  . = SEGMENT_START("text-segment", 0x08048000) + SIZEOF_HEADERS;
+  .interp         : { *(.interp) }
+  .dynsym         : { *(.dynsym) }
+  .dynstr         : { *(.dynstr) }
+  .gnu.version_r  : { *(.gnu.version_r) } 
+  .rel.dyn        : { *(.rel.init .rel.text* .rel.gnu.linkonce.t.* .rel.fini) }
+  .rel.plt        : { *(.rel.plt) }
+  .init           : { KEEP (*(SORT_NONE(.init))) }
+  .plt            : { *(.*plt) }
+  .plt.got        : { *(.plt.got) }
+  .text           : { *(.text.* .gnu.linkonce.t.*) }
+  .fini           : { KEEP (*(SORT_NONE(.fini))) }
+  .rodata         : { *(.rodata* .gnu.linkonce.r.*) }
+  PROVIDE_HIDDEN (__init_array_start = .);PROVIDE_HIDDEN (__init_array_end = .);
+  .dynamic        : { *(.dynamic) }
+  .got            : { *(.*got) }
+  .got.plt        : { *(.*got.plt) }
+
+  /DISCARD/ : { *(.note.GNU-stack) *(.gnu*debug*) *(.gnu.lto_*) *(.note.ABI-tag) *(.eh_frame*) *(.comment) *$(.note.gnu.build-id) *(.*_array) }
+}
